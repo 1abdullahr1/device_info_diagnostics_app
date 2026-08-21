@@ -30,6 +30,24 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Create CI signing keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore android/app/upload-keystore.jks \
+            -storepass androidci \
+            -keypass androidci \
+            -alias upload \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=CI Builder,O=CI,C=US"
+          cat > android/key.properties <<'EOF'
+          storePassword=androidci
+          keyPassword=androidci
+          keyAlias=upload
+          storeFile=upload-keystore.jks
+          EOF
+
       - name: Build Android Release APK
         run: flutter build apk --release --android-skip-build-dependency-validation
 
