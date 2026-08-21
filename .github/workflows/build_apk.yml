@@ -46,9 +46,6 @@ jobs:
             'keyPassword=androidci' \
             'keyAlias=upload' \
             'storeFile=upload-keystore.jks' > android/key.properties
-          echo "key.properties:"
-          cat android/key.properties
-          ls -la android/app/upload-keystore.jks
 
       - name: Build Android Release APK
         run: |
@@ -56,13 +53,29 @@ jobs:
           flutter build apk --release --android-skip-build-dependency-validation
           status=$?
           if [ $status -ne 0 ]; then
-            echo "::group::Gradle stacktrace"
+            echo "Flutter packaging failed; retrying assembleRelease via Gradle..."
             cd android
             chmod +x gradlew 2>/dev/null || true
-            ./gradlew :app:packageRelease --stacktrace --info 2>&1 | tail -n 250
-            echo "::endgroup::"
+            ./gradlew assembleRelease --stacktrace
+            status=$?
+            cd ..
+          fi
+          if [ $status -ne 0 ]; then
             exit $status
           fi
+          # Normalize APK path for the upload step
+          mkdir -p build/app/outputs/flutter-apk
+          if [ ! -f build/app/outputs/flutter-apk/app-release.apk ]; then
+            found=$(find build -name 'app-release.apk' | head -n 1)
+            if [ -n "$found" ]; then
+              cp "$found" build/app/outputs/flutter-apk/app-release.apk
+            else
+              echo "APK not found after build"
+              find build -name '*.apk' || true
+              exit 1
+            fi
+          fi
+          ls -lh build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
