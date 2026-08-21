@@ -41,15 +41,28 @@ jobs:
             -keysize 2048 \
             -validity 10000 \
             -dname "CN=CI Builder,O=CI,C=US"
-          cat > android/key.properties <<'EOF'
-          storePassword=androidci
-          keyPassword=androidci
-          keyAlias=upload
-          storeFile=upload-keystore.jks
-          EOF
+          printf '%s\n' \
+            'storePassword=androidci' \
+            'keyPassword=androidci' \
+            'keyAlias=upload' \
+            'storeFile=upload-keystore.jks' > android/key.properties
+          echo "key.properties:"
+          cat android/key.properties
+          ls -la android/app/upload-keystore.jks
 
       - name: Build Android Release APK
-        run: flutter build apk --release --android-skip-build-dependency-validation
+        run: |
+          set +e
+          flutter build apk --release --android-skip-build-dependency-validation
+          status=$?
+          if [ $status -ne 0 ]; then
+            echo "::group::Gradle stacktrace"
+            cd android
+            chmod +x gradlew 2>/dev/null || true
+            ./gradlew :app:packageRelease --stacktrace --info 2>&1 | tail -n 250
+            echo "::endgroup::"
+            exit $status
+          fi
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
